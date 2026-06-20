@@ -10,3 +10,5 @@ from app.agent.nodes.run_sql import run_sql
 from app.agent.nodes.validate_sql import validate_sql
 from app.agent.nodes.add_extra_context import add_extra_context
 from app.agent.nodes.correct_sql import correct_sql
+from app.agent.nodes.classify_intent import classify_intent
+from app.agent.nodes.chitchat_stream import chitchat_stream

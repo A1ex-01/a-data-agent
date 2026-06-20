@@ -1,5 +1,10 @@
 from langgraph.graph import StateGraph, START, END
-from app.agent.nodes import recall_column, recall_value, recall_metric, merge_retrieved_info, filter_metric, filter_table, add_extra_context, generate_sql, validate_sql, correct_sql, run_sql
+from app.agent.nodes import (
+    recall_column, recall_value, recall_metric,
+    merge_retrieved_info, filter_metric, filter_table,
+    add_extra_context, generate_sql, validate_sql, correct_sql, run_sql,
+    classify_intent, chitchat_stream,
+)
 from app.clients.embedding_client_manager import embedding_client_manager
 from app.clients.es_client_manager import es_client_manager
 from app.clients.mysql_client_manager import dw_mysql_client_manager, meta_mysql_client_manager
@@ -7,6 +12,7 @@ from app.clients.qdrant_client_manager import qdrant_client_manager
 import asyncio
 from app.agent.context import DataAgentContext
 from app.agent.state import DataAgentState
+from app.agent.nodes.classify_intent import INTENT_CHITCHAT, INTENT_DATA_QUERY
 from app.agent.nodes.extract_keywords import extract_keywords
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
@@ -21,6 +27,8 @@ from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantReposit
 graph_builder = StateGraph(state_schema=DataAgentState, context_schema=DataAgentContext)
 
 # 添加节点
+graph_builder.add_node("classify_intent", classify_intent)
+graph_builder.add_node("chitchat_stream", chitchat_stream)
 graph_builder.add_node("extract_keywords", extract_keywords)
 graph_builder.add_node("recall_column", recall_column)
 graph_builder.add_node("recall_value", recall_value)
@@ -33,8 +41,29 @@ graph_builder.add_node("generate_sql", generate_sql)
 graph_builder.add_node("validate_sql", validate_sql)
 graph_builder.add_node("correct_sql", correct_sql)
 graph_builder.add_node("run_sql", run_sql)
+
+# Intent classification is the single entry point. It decides whether
+# the user's input is a data query (full pipeline below) or chitchat
+# (short-circuited straight to a free-form LLM reply).
+graph_builder.add_edge(START, "classify_intent")
+
+def _route_after_intent(state: DataAgentState) -> str:
+    intent = state.get("intent")
+    return "chitchat_stream" if intent == INTENT_CHITCHAT else "extract_keywords"
+
+graph_builder.add_conditional_edges(
+    source="classify_intent",
+    path=_route_after_intent,
+    path_map={
+        "chitchat_stream": "chitchat_stream",
+        "extract_keywords": "extract_keywords",
+    },
+)
+
+# Chitchat replies end immediately after the model finishes streaming.
+graph_builder.add_edge("chitchat_stream", END)
+
 # 添加普通边
-graph_builder.add_edge(START, "extract_keywords")
 graph_builder.add_edge("extract_keywords", "recall_column")
 graph_builder.add_edge("extract_keywords", "recall_metric")
 graph_builder.add_edge("extract_keywords", "recall_value")

@@ -156,6 +156,31 @@ export function ChatShell() {
               })
               break
             }
+            case "chitchat": {
+              const delta = event.delta
+              updateAssistant(assistant.id, (m) => ({
+                ...m,
+                text: m.text + delta,
+              }))
+              break
+            }
+            case "answer": {
+              const snapshotSteps: StepProgress[] = [...steps]
+              const text = event.text
+              updateAssistant(assistant.id, (m) => {
+                if (!m.query) return m
+                return {
+                  ...m,
+                  text,
+                  query: {
+                    ...m.query,
+                    status: "succeeded",
+                    steps: snapshotSteps,
+                  },
+                }
+              })
+              break
+            }
             case "error": {
               const snapshotSteps: StepProgress[] = [...steps]
               const message = event.message
@@ -190,7 +215,7 @@ export function ChatShell() {
   }, [streaming])
 
   return (
-    <div className="bg-background flex h-dvh w-full justify-center overflow-hidden">
+    <div className="flex h-dvh w-full justify-center overflow-hidden bg-background">
       <div className="relative flex w-full max-w-3xl flex-col px-4 pt-6 sm:px-6">
         {/* Conversation */}
         <div
@@ -216,7 +241,7 @@ export function ChatShell() {
         </div>
 
         {/* Composer pinned to bottom */}
-        <div className="bg-background absolute right-4 bottom-4 left-4 z-10 sm:right-6 sm:left-6">
+        <div className="absolute right-4 bottom-4 left-4 z-10 bg-background sm:right-6 sm:left-6">
           <div className="mx-auto w-full max-w-3xl">
             <Composer
               streaming={streaming !== null}
@@ -224,10 +249,20 @@ export function ChatShell() {
               onSubmit={handleSubmit}
               onCancel={handleCancel}
             />
-            <p className="text-muted-foreground mt-2 text-center text-xs">
-              Press <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">Enter</kbd>{" "}
-              to send · <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">Shift</kbd>+
-              <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">Enter</kbd> for a new line
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Press{" "}
+              <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+                Enter
+              </kbd>{" "}
+              to send ·{" "}
+              <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+                Shift
+              </kbd>
+              +
+              <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+                Enter
+              </kbd>{" "}
+              for a new line
             </p>
           </div>
         </div>
@@ -238,20 +273,20 @@ export function ChatShell() {
 
 function EmptyState() {
   return (
-    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-4 text-center">
-      <div className="bg-muted text-foreground flex size-12 items-center justify-center rounded-full">
+    <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-muted-foreground">
+      <div className="flex size-12 items-center justify-center rounded-full bg-muted text-foreground">
         <MessageSquare className="size-6" />
       </div>
       <div className="space-y-1.5">
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Ask anything about your data
         </h1>
-        <p className="text-muted-foreground max-w-md text-sm">
+        <p className="max-w-md text-sm text-muted-foreground">
           The agent extracts keywords, recalls relevant tables and metrics,
           writes SQL, and returns the executed result — streamed live.
         </p>
       </div>
-      <ul className="text-foreground/80 grid w-full max-w-xl gap-1.5 pt-2 text-left text-sm">
+      {/* <ul className="text-foreground/80 grid w-full max-w-xl gap-1.5 pt-2 text-left text-sm">
         {SUGGESTIONS.map((s) => (
           <li
             key={s}
@@ -260,7 +295,7 @@ function EmptyState() {
             {s}
           </li>
         ))}
-      </ul>
+      </ul> */}
     </div>
   )
 }
