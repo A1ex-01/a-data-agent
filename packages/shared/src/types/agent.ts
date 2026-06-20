@@ -27,11 +27,16 @@ export interface AgentStep {
 
 /**
  * The full pipeline the agent runs through. Order matches execution order
- * in `app/agent/graph.py`. Note that `recallColumn`, `recallMetric`, and
- * `recallValue` run in parallel from a UI-timeline perspective; consumers
- * should treat them as siblings.
+ * in `app/agent/graph.py`. The first two steps are the intent router and
+ * the chitchat short-circuit — when the intent classifier routes to
+ * chitchat, the rest of the data-pipeline steps never run.
+ *
+ * Recall steps (column / value / metric) run in parallel from a
+ * UI-timeline perspective; consumers should treat them as siblings.
  */
 export const AGENT_STEPS: readonly AgentStep[] = [
+  { id: "意图识别", label: "Classify intent" },
+  { id: "闲聊回复", label: "Compose reply", terminal: true },
   { id: "抽取关键字", label: "Extract keywords" },
   { id: "召回字段", label: "Recall columns" },
   { id: "召回字段取值", label: "Recall values" },

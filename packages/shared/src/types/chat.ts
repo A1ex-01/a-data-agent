@@ -4,17 +4,18 @@
  */
 
 import type { AgentEvent, ProgressEvent, StepStatus } from "./events";
+import type { Intent } from "./events";
 import type { QueryResultRow } from "./api";
 
 export type MessageRole = "user" | "assistant" | "system";
 
 /**
- * What the assistant is currently doing for a given chat message.
+ * Lifecycle of a single chat turn from the client perspective.
  *
- *   - `idle`         — not yet started
- *   - `streaming`    — SSE connection open, receiving events
- *   - `succeeded`    — received a `result` event with rows
- *   - `failed`       — received an `error` event, or the stream errored
+ *   - `idle`         — not yet started (no events received yet)
+ *   - `streaming`    — stream open, events arriving
+ *   - `succeeded`    — saw `result` (data query) or `answer` (chitchat)
+ *   - `failed`       — saw `error`, or the stream threw
  *   - `aborted`      — user cancelled the request
  */
 export type QueryStatus =
@@ -30,24 +31,35 @@ export interface StepProgress {
   status: StepStatus;
   /** When `status === "error"`, the error message from the backend. */
   error?: string;
+  /**
+   * Set only by the `classify_intent` step on success. Frontends can
+   * surface it to make the routing decision visible to the user
+   * ("asked a data question" vs "asked a chitchat question").
+   */
+  intent?: Intent;
 }
 
 /**
  * A chat message. User messages have a `text` field and no progress;
- * assistant messages have the full progress timeline plus the optional
- * result rows.
+ * assistant messages have the full progress timeline plus — depending
+ * on whether the agent routed to a data query or a chitchat — either
+ * SQL result rows or a plain free-form text answer.
  */
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   text: string;
   createdAt: number;
-  /** Only set for assistant messages that came from a streaming query. */
+  /**
+   * Set on assistant messages that came from a streaming query. Always
+   * populated (even for chitchat), so the UI can show the pipeline
+   * timeline (intent + reply steps) for any agent turn.
+   */
   query?: {
     status: QueryStatus;
     /** Most-recent status per agent step id, in arrival order. */
     steps: StepProgress[];
-    /** Final SQL result rows when `status === "succeeded"`. */
+    /** Final SQL result rows when `status === "succeeded"` (data query). */
     rows?: QueryResultRow[];
     /** Error message when `status === "failed"`. */
     error?: string;

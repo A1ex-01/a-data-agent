@@ -15,7 +15,14 @@
  * `AgentEvent` discriminated union (see `./types/events`).
  */
 
-import type { AgentEvent, ErrorEvent, ProgressEvent, ResultEvent } from "../types";
+import type {
+  AgentEvent,
+  AnswerEvent,
+  ChitchatDeltaEvent,
+  ErrorEvent,
+  ProgressEvent,
+  ResultEvent,
+} from "../types";
 import type { QueryResultRow } from "../types";
 
 /** Thrown when the parser can't decode an event payload as JSON. */
@@ -76,7 +83,10 @@ function toAgentEvent(payload: unknown): AgentEvent {
     case "progress": {
       const step = typeof record.step === "string" ? record.step : "";
       const status = record.status;
-      if (!step || (status !== "running" && status !== "success" && status !== "error")) {
+      if (
+        !step ||
+        (status !== "running" && status !== "success" && status !== "error")
+      ) {
         return {
           type: "error",
           message: `Malformed progress event: ${JSON.stringify(record)}`,
@@ -90,6 +100,20 @@ function toAgentEvent(payload: unknown): AgentEvent {
       };
       return event;
     }
+    case "chitchat": {
+      const event: ChitchatDeltaEvent = {
+        type: "chitchat",
+        delta: record.delta as string,
+      };
+      return event;
+    }
+    case "answer": {
+      const event: AnswerEvent = {
+        type: "answer",
+        text: record.text as string,
+      };
+      return event;
+    }
     case "result": {
       const data = Array.isArray(record.data)
         ? (record.data as QueryResultRow[])
@@ -99,9 +123,7 @@ function toAgentEvent(payload: unknown): AgentEvent {
     }
     case "error": {
       const message =
-        typeof record.message === "string"
-          ? record.message
-          : "Unknown error";
+        typeof record.message === "string" ? record.message : "Unknown error";
       return { type: "error", message };
     }
     default: {

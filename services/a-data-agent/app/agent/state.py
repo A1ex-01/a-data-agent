@@ -43,6 +43,14 @@ class DataAgentState(TypedDict):
     query: str  # 用户查询
     keywords: list[str]  # 用户查询的关键字
 
+    # --- Intent routing ---
+    # `intent_classifier` 节点写入之一：`data_query` | `chitchat`。
+    intent: str
+    # `chitchat_stream` 节点流式累积的闲聊回复文本。
+    answer_text: str
+    # `chitchat_stream` 节点最终写入的完整文本（前端用作稳定快照）。
+    final_answer: str
+
     retrieved_columns: list[ColumnInfo]  # 召回的字段信息
     retrieved_values: list[ValueInfo]  # 召回的值信息
     retrieved_metrics: list[MetricInfo]  # 召回的指标信息
