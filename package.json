@@ -1,0 +1,18 @@
+{
+  "name": "a-data-agent-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo root for the a-data-agent project. Manages the JS/TS workspace (apps + shared packages). The Python backend under services/ is intentionally outside this monorepo.",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter=./apps/* dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "pnpm -r format",
+    "clean": "pnpm -r exec rm -rf node_modules .next dist"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.0"
+}
