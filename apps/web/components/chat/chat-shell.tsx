@@ -1,15 +1,32 @@
 "use client"
 
 /**
- * ChatShell — top-level chat layout. Owns the message list and routes
- * composer submissions to the agent client. Designed to be the only
- * piece of stateful chat UI; future admin tools can reuse the same
- * pieces (`MessageBubble`, `Composer`, `ProgressTimeline`) without
- * pulling in the state container.
+ * ChatShell — top-level chat layout, Vercel Chatbot style.
+ *
+ *   ┌─────────────────────────────────────────────┐
+ *   │   (empty state, centered)                   │
+ *   │                                             │
+ *   │   user  ░░░░░░░░░░░░░░  ← right bubble      │
+ *   │   assistant paragraph  ← left, no chrome    │
+ *   │   ┌──── Reasoning ▾ ────┐                   │
+ *   │   │ step · step · step  │                   │
+ *   │   └─────────────────────┘                   │
+ *   │   ┌──── Result · 5 rows ───┐                │
+ *   │   │ data table             │                │
+ *   │   └────────────────────────┘                │
+ *   │                                             │
+ *   │   ┌──────────────────────────────┐ [↑]      │
+ *   │   │ Send a message…              │          │
+ *   │   └──────────────────────────────┘          │
+ *   └─────────────────────────────────────────────┘
+ *
+ * No sidebar, no top header. `max-w-3xl mx-auto` content column with
+ * generous side padding; conversation scroll area handles auto-pin and
+ * shows a "jump to latest" pill (see `conversation-scroll-button.tsx`).
  */
 
 import * as React from "react"
-import { Database, Trash2 } from "lucide-react"
+import { MessageSquare } from "lucide-react"
 
 import {
   applyAgentEvent,
@@ -20,9 +37,8 @@ import {
 } from "@a-data-agent/shared"
 
 import { Composer } from "@/components/chat/composer"
+import { ConversationScrollButton } from "@/components/chat/conversation-scroll-button"
 import { MessageBubble } from "@/components/chat/message-bubble"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 function makeId(): string {
   if (
@@ -45,24 +61,33 @@ function newAssistantPlaceholder(): ChatMessage {
 }
 
 interface StreamingHandle {
-  /** Async iterator that yields AgentEvents for this submission. */
   events: AsyncIterable<AgentEvent>
   abort: () => void
 }
 
+const SUGGESTIONS = [
+  "华北地区 AOV 是多少？",
+  "Top 10 商品按销量排序",
+  "本月新增用户数对比上月变化",
+  "Explain the fact_order table schema",
+]
+
 export function ChatShell() {
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [streaming, setStreaming] = React.useState<StreamingHandle | null>(null)
+  /** Brief window between submit and first event — drives the submit button's spinner. */
+  const [submitting, setSubmitting] = React.useState(false)
   const scrollRef = React.useRef<HTMLDivElement | null>(null)
 
-  // Auto-scroll to the bottom whenever the message list grows.
+  // Auto-pin to bottom whenever content grows while user is at (or near) the bottom.
   React.useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const viewport = el.querySelector<HTMLElement>(
-      "[data-slot='scroll-area-viewport']"
-    )
-    if (viewport) viewport.scrollTop = viewport.scrollHeight
+    const viewport = scrollRef.current
+    if (!viewport) return
+    const distance =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    if (distance < 200) {
+      viewport.scrollTop = viewport.scrollHeight
+    }
   }, [messages])
 
   const updateAssistant = React.useCallback(
@@ -85,6 +110,7 @@ export function ChatShell() {
       const assistant = newAssistantPlaceholder()
 
       setMessages((prev) => [...prev, userMessage, assistant])
+      setSubmitting(true)
 
       try {
         const { submitQuery } = await import("@/lib/agent-client")
@@ -92,7 +118,12 @@ export function ChatShell() {
         setStreaming(handle)
 
         const steps: StepProgress[] = []
+        let firstEvent = true
         for await (const event of handle.events) {
+          if (firstEvent) {
+            firstEvent = false
+            setSubmitting(false)
+          }
           switch (event.type) {
             case "progress": {
               const next = applyAgentEvent(steps, event)
@@ -101,7 +132,10 @@ export function ChatShell() {
               const snapshotSteps: StepProgress[] = [...steps]
               updateAssistant(assistant.id, (m) => {
                 if (!m.query) return m
-                return { ...m, query: { ...m.query, steps: snapshotSteps } }
+                return {
+                  ...m,
+                  query: { ...m.query, steps: snapshotSteps },
+                }
               })
               break
             }
@@ -143,6 +177,7 @@ export function ChatShell() {
         }
       } finally {
         setStreaming(null)
+        setSubmitting(false)
       }
     },
     [updateAssistant]
@@ -151,101 +186,76 @@ export function ChatShell() {
   const handleCancel = React.useCallback(() => {
     streaming?.abort()
     setStreaming(null)
+    setSubmitting(false)
   }, [streaming])
-
-  const handleClear = React.useCallback(() => {
-    streaming?.abort()
-    setMessages([])
-    setStreaming(null)
-  }, [streaming])
-
-  const isStreaming = streaming !== null
-  const lastAssistantIsStreaming = isStreaming
 
   return (
-    <div className="bg-background flex h-dvh w-full flex-col">
-      <header className="border-border bg-card/40 flex shrink-0 items-center justify-between gap-3 border-b px-4 py-2.5 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary/10 text-primary ring-primary/20 flex size-8 items-center justify-center rounded-lg ring-1">
-            <Database className="size-4" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold">a-data-agent</span>
-            <span className="text-muted-foreground text-[11px]">
-              Ask questions in natural language · results stream live
-            </span>
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleClear}
-          disabled={messages.length === 0 && !isStreaming}
-          className="text-muted-foreground"
-        >
-          <Trash2 className="size-3.5" />
-          Clear
-        </Button>
-      </header>
-
-      <ScrollArea ref={scrollRef} className="flex-1">
+    <div className="bg-background flex h-dvh w-full justify-center overflow-hidden">
+      <div className="relative flex w-full max-w-3xl flex-col px-4 pt-6 sm:px-6">
+        {/* Conversation */}
         <div
-          className={cn(
-            "mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6"
-          )}
+          ref={scrollRef}
+          data-slot="conversation-viewport"
+          className="relative flex-1 overflow-y-auto"
         >
-          {messages.length === 0 ? (
-            <EmptyState />
-          ) : (
-            messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))
-          )}
+          <div
+            className={cn(
+              "mx-auto flex w-full flex-col gap-6 pb-32",
+              messages.length === 0 && "h-full"
+            )}
+          >
+            {messages.length === 0 ? (
+              <EmptyState />
+            ) : (
+              messages.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))
+            )}
+          </div>
+          <ConversationScrollButton />
         </div>
-      </ScrollArea>
 
-      <footer className="border-border bg-background/80 shrink-0 border-t px-4 py-3 backdrop-blur">
-        <div className="mx-auto w-full max-w-3xl">
-          <Composer
-            streaming={lastAssistantIsStreaming}
-            onSubmit={handleSubmit}
-            onCancel={handleCancel}
-          />
-          <p className="text-muted-foreground mt-2 text-center text-[11px]">
-            ⌘/Ctrl + Enter to send · Press Stop to cancel a running query
-          </p>
+        {/* Composer pinned to bottom */}
+        <div className="bg-background absolute right-4 bottom-4 left-4 z-10 sm:right-6 sm:left-6">
+          <div className="mx-auto w-full max-w-3xl">
+            <Composer
+              streaming={streaming !== null}
+              submitting={submitting}
+              onSubmit={handleSubmit}
+              onCancel={handleCancel}
+            />
+            <p className="text-muted-foreground mt-2 text-center text-xs">
+              Press <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">Enter</kbd>{" "}
+              to send · <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">Shift</kbd>+
+              <kbd className="bg-muted rounded px-1 py-0.5 font-mono text-[10px]">Enter</kbd> for a new line
+            </p>
+          </div>
         </div>
-      </footer>
+      </div>
     </div>
   )
 }
 
 function EmptyState() {
-  const suggestions = [
-    "华北地区 AOV 是多少？",
-    "Top 10 商品按销量排序",
-    "本月新增用户数对比上月变化",
-    "Explain the `fact_order` table",
-  ]
   return (
-    <div className="text-muted-foreground flex flex-col items-center gap-3 pt-16 text-center text-sm">
-      <div className="bg-primary/10 text-primary ring-primary/20 flex size-10 items-center justify-center rounded-xl ring-1">
-        <Database className="size-5" />
+    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-4 text-center">
+      <div className="bg-muted text-foreground flex size-12 items-center justify-center rounded-full">
+        <MessageSquare className="size-6" />
       </div>
-      <div className="space-y-1">
-        <p className="text-foreground text-base font-medium">
-          Ask anything about your data warehouse
-        </p>
-        <p className="max-w-md text-xs">
-          The agent extracts keywords, recalls relevant tables/columns/metrics,
-          writes SQL, and returns the executed result — all streamed live.
+      <div className="space-y-1.5">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+          Ask anything about your data
+        </h1>
+        <p className="text-muted-foreground max-w-md text-sm">
+          The agent extracts keywords, recalls relevant tables and metrics,
+          writes SQL, and returns the executed result — streamed live.
         </p>
       </div>
-      <ul className="text-foreground/80 grid w-full max-w-xl gap-1.5 pt-4 text-left text-xs">
-        {suggestions.map((s) => (
+      <ul className="text-foreground/80 grid w-full max-w-xl gap-1.5 pt-2 text-left text-sm">
+        {SUGGESTIONS.map((s) => (
           <li
             key={s}
-            className="border-border bg-card text-card-foreground rounded-md border px-3 py-1.5"
+            className="border-border bg-card text-card-foreground rounded-xl border px-4 py-2.5 text-sm"
           >
             {s}
           </li>
