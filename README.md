@@ -11,6 +11,8 @@ columns / values / metrics from Qdrant + Elasticsearch, writes SQL,
 executes it against the data warehouse, and streams the rows back
 into the chat — all live, step by step.
 
+![Chat home — empty state](assets/chat-home-hero.png)
+
 </div>
 
 ---
@@ -196,7 +198,7 @@ agent should run the full data pipeline or just chat back directly.
    obvious chitchat inputs (e.g. `你是谁`, `hello`, `thanks`,
    `introduce yourself`). No LLM call, no cost.
 2. **Data-hint veto.** Even if the heuristic weakly matches, the
-   presence of *any* data hint — words like `多少`, `top`, `gmv`,
+   presence of _any_ data hint — words like `多少`, `top`, `gmv`,
    `order`, `表`, `字段`, … — overrides the chitchat guess.
 3. **LLM fallback.** Anything that wasn't a clear chitchat is sent
    to a tiny JSON-mode LLM call (`prompts/classify_intent.prompt`)
@@ -280,31 +282,60 @@ pipeline gives up and surfaces the error to the user.
 
 ### Vercel Chatbot-style chat UI
 
-**What it is.** A clean, modern chat surface modelled on the
+**What it is.** A clean, minimal chat surface modelled on the
 [Vercel Chatbot](https://chatbot.ai-sdk.dev/) reference
-implementation. Pure shadcn/Tailwind, no heavy chat libraries.
+implementation. Pure shadcn/Tailwind, no heavy chat libraries, no
+top bar, no nav — the chat itself is the entire UI.
 
-**The visual elements.**
+**The visual elements** (as captured in the screenshot below):
 
-- **Centered column layout** (`max-w-3xl mx-auto`, full-height
-  viewport) with a `bg-background` palette inspired by Vercel's
-  neutral + blue design tokens.
-- **Empty state** with a large icon, headline, and a one-line
-  description of what the agent does.
-- **Composer** is a framed textarea (`rounded-2xl border`) with
-  the submit / stop / spinner button **absolutely positioned at
-  the bottom-right inside the frame**. The button is a small
-  filled circle that swaps between three icons based on status:
-  `ArrowUp` (ready), `Loader2` (submitting), `Square` (streaming).
-- **Message layout** with right-aligned primary-blue rounded
-  bubbles for the user and transparent left-aligned text for the
-  assistant.
+- **Centered column layout** — `max-w-3xl mx-auto` on a full-height
+  viewport (`h-dvh w-full`), with generous padding on desktop
+  (`px-4 pt-6 sm:px-6`) so the chat breathes.
+- **Empty state** — when no messages exist, the conversation area
+  is vertically centered and shows three things, top-to-bottom:
+  - a circular muted-background chat-bubble icon (`MessageSquare`,
+    `size-12` rounded-full),
+  - a large bold headline — _"Ask anything about your data"_
+    (`text-2xl font-semibold tracking-tight text-foreground`),
+  - a one-line subtitle in muted text — _"The agent extracts
+    keywords, recalls relevant tables and metrics, writes SQL, and
+    returns the executed result — streamed live."_
+- **Composer** — a framed `textarea` (`rounded-2xl border border-input
+bg-background shadow-sm`) pinned to the bottom of the viewport with
+  placeholder text _"Send a message..."_. A single submit/cancel
+  button is **absolutely positioned at the bottom-right inside the
+  frame** (`absolute right-2 bottom-2`), styled as a small filled
+  circle that swaps between three icons based on status: `ArrowUp`
+  (ready to send), `Loader2` (submitting), `Square` (streaming —
+  click to cancel).
+- **Composer hint** — immediately below the textarea, a centered
+  line of micro-copy using `kbd` elements:
+  _Press `Enter` to send · `Shift`+`Enter` for a new line._
+- **Message layout** — user messages render as right-aligned
+  primary-blue rounded bubbles; assistant messages render as
+  transparent left-aligned text.
 - **Reasoning disclosure** (Vercel Chatbot's collapsible
-  `Reasoning` component) wrapping the live pipeline.
-- **Jump-to-latest pill** that appears at the bottom-right of the
-  conversation when the user has scrolled up.
+  `Reasoning` component) wrapping the live pipeline once a query
+  starts — collapsed in the empty state, expanded while the agent
+  is running.
+- **Jump-to-latest pill** (`ConversationScrollButton`) that floats
+  at the bottom-right of the conversation when the user has
+  scrolled up away from the latest message.
 - **Full dark mode** via shadcn's CSS variables and the
-  `next-themes` provider.
+  `next-themes` provider (`ThemeProvider` in `app/layout.tsx`).
+
+**Implementation map.** The whole surface is one component
+(`components/chat/chat-shell.tsx`) with three sibling files:
+
+| File                             | Role                                        |
+| -------------------------------- | ------------------------------------------- |
+| `chat-shell.tsx`                 | Top-level layout + message stream state     |
+| `composer.tsx`                   | Textarea + submit/cancel button + kbd hint  |
+| `message-bubble.tsx`             | Per-message rendering (user vs. assistant)  |
+| `progress-timeline.tsx`          | The Vercel-style reasoning disclosure       |
+| `result-table.tsx`               | The SQL rows card (assistant messages only) |
+| `conversation-scroll-button.tsx` | Jump-to-latest pill                         |
 
 ### Cancel / stop mid-stream
 
@@ -329,13 +360,13 @@ like `cn()`.
 
 **The five SSE event types** (discriminated by `type`):
 
-| Event       | Emitted by                  | Used for                              |
-| ----------- | --------------------------- | ------------------------------------- |
-| `progress`  | every LangGraph node        | live step status                      |
-| `chitchat`  | `chitchat_stream`           | a single token of a free-form reply   |
-| `answer`    | `chitchat_stream`           | the finalized reply text              |
-| `result`    | `run_sql`                   | the final SQL result rows             |
-| `error`     | the SSE stream wrapper      | a fatal, stream-level failure         |
+| Event      | Emitted by             | Used for                            |
+| ---------- | ---------------------- | ----------------------------------- |
+| `progress` | every LangGraph node   | live step status                    |
+| `chitchat` | `chitchat_stream`      | a single token of a free-form reply |
+| `answer`   | `chitchat_stream`      | the finalized reply text            |
+| `result`   | `run_sql`              | the final SQL result rows           |
+| `error`    | the SSE stream wrapper | a fatal, stream-level failure       |
 
 **Why it matters.** Adding a new event type forces a single
 breaking-typecheck change in one file, so the backend and the
@@ -400,6 +431,7 @@ a-data-agent-monorepo/
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 ├── Makefile                      # `make air`, `make air-api`
+├── assets/                       # Screenshots embedded in the README
 └── README.md
 ```
 
@@ -456,25 +488,25 @@ pnpm dev
 Open [http://localhost:3000](http://localhost:3000) and start
 asking questions. Try mixing it up:
 
-- *"你是谁"* — should short-circuit to a free-form reply, no SQL.
-- *"华北地区 AOV 是多少?"* — should walk the full pipeline and
+- _"你是谁"_ — should short-circuit to a free-form reply, no SQL.
+- _"华北地区 AOV 是多少?"_ — should walk the full pipeline and
   return rows.
 
 ---
 
 ## Common commands
 
-| Command                  | What it does                              |
-| ------------------------ | ----------------------------------------- |
-| `pnpm install`           | Install all workspace dependencies        |
-| `pnpm dev`               | Run all apps in parallel                  |
-| `pnpm build`             | Build all workspace packages              |
-| `pnpm lint`              | Lint all workspace packages               |
-| `pnpm typecheck`         | Type-check all workspace packages         |
-| `pnpm format`            | Run Prettier across all packages          |
-| `pnpm --filter web dev`  | Run only the web app                      |
-| `pnpm --filter web build`| Production build of the web app           |
-| `make air-api`           | Run the Python backend                    |
+| Command                   | What it does                       |
+| ------------------------- | ---------------------------------- |
+| `pnpm install`            | Install all workspace dependencies |
+| `pnpm dev`                | Run all apps in parallel           |
+| `pnpm build`              | Build all workspace packages       |
+| `pnpm lint`               | Lint all workspace packages        |
+| `pnpm typecheck`          | Type-check all workspace packages  |
+| `pnpm format`             | Run Prettier across all packages   |
+| `pnpm --filter web dev`   | Run only the web app               |
+| `pnpm --filter web build` | Production build of the web app    |
+| `make air-api`            | Run the Python backend             |
 
 ---
 
