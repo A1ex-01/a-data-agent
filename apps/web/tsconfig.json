@@ -15,8 +15,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
-      "@a-data-agent/contracts": ["../../packages/contracts/src/index.ts"],
-      "@a-data-agent/contracts/*": ["../../packages/contracts/src/*"]
+      "@a-data-agent/shared": ["../../packages/shared/src/index.ts"],
+      "@a-data-agent/shared/types": ["../../packages/shared/src/types/index.ts"],
+      "@a-data-agent/shared/lib": ["../../packages/shared/src/lib/index.ts"],
+      "@a-data-agent/shared/env": ["../../packages/shared/src/env.ts"]
     }
   },
   "include": [

@@ -1,6 +1,4 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
+// Re-export `cn` from @a-data-agent/shared so existing imports of
+// `@/lib/utils` keep working. The canonical implementation now lives in
+// the shared package and is shared with future apps (e.g. apps/admin).
+export { cn } from "@a-data-agent/shared";

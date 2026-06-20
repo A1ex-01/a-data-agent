@@ -10,9 +10,9 @@ importers:
 
   apps/web:
     dependencies:
-      '@a-data-agent/contracts':
+      '@a-data-agent/shared':
         specifier: workspace:*
-        version: link:../../packages/contracts
+        version: link:../../packages/shared
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -78,8 +78,17 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/contracts:
+  packages/shared:
     devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
       typescript:
         specifier: ^5
         version: 5.9.3

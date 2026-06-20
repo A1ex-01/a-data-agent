@@ -22,9 +22,12 @@ a-data-agent-monorepo/
 
 ### What is in the monorepo
 
-- **`apps/web`** — the Next.js application.
-- **`packages/contracts`** — shared TypeScript data structures consumed by
-  `apps/web` (and any future apps).
+- **`apps/web`** — the Next.js chat application. Calls
+  `apps/web/app/api/query/route.ts` which proxies to the backend.
+- **`packages/shared`** — `@a-data-agent/shared`. Shared TypeScript types
+  (API contract, SSE events, chat types), constants (`AGENT_STEPS`),
+  and utilities (`cn`, `parseSseStream`, `apiBaseUrl`). Used by every
+  frontend app in the monorepo.
 
 ### What is outside the monorepo
 
@@ -62,6 +65,12 @@ pnpm --filter web dev
 | `pnpm typecheck`                   | Type-check all workspace packages         |
 | `pnpm format`                      | Run Prettier across all packages          |
 | `make air-api`                     | Run the Python backend (out of monorepo)  |
+
+## Web app configuration
+
+`apps/web` reads its backend URL from `AIR_API_BASE_URL` (see
+`apps/web/.env.example`). Default is `http://localhost:8000`, which
+matches `make air-api`.
 
 ## Adding a new workspace package
 
